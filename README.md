@@ -1,0 +1,1 @@
+https://console.cloud.google.com/storage/browser/tim-bigdata-dev-ca1f-dataproc-hdfs/tmp;tab=objects?hl=pt-br&project=tim-bigdata-dev-ca1f&supportedpurview=project&pageState=(%22StorageObjectListTable%22:(%22f%22:%22%255B%255D%22))&prefix=&forceOnObjectsSortingFiltering=false
