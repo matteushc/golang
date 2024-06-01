@@ -18,7 +18,23 @@ func check(e error) {
     }
 }
 
-func readFileParallel(fileName string, searchString string, wg *sync.WaitGroup){
+func writeFile(fileName string, ch <-chan string){
+	f, err := os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+    if err != nil {
+        panic(err)
+    }
+
+    defer f.Close()
+
+	for data := range ch {
+		if _, err = f.WriteString(data + "\n"); err != nil {
+			panic(err)
+		}
+	}
+
+}
+
+func readFileParallel(fileName string, searchString string, ch chan<- string, wg *sync.WaitGroup){
 	defer wg.Done()
 
 	file, err := os.Open(fileName)
@@ -50,6 +66,7 @@ func readFileParallel(fileName string, searchString string, wg *sync.WaitGroup){
 	}
 	if found {
 		fmt.Println(fileName)
+		ch <- fileName
 	}
 	//fmt.Printf(" %d\n", count)
 }
@@ -79,59 +96,44 @@ func main() {
 
 	subDirToSkip := ".git"
 
-	// err_parent := filepath.Walk("C:\\projetos\\tables_bigquerys\\path_dados", func(path string, info fs.FileInfo, err error) error {
-	// 	if err != nil {
-	// 		fmt.Printf("Error %q: %v\n", path, err)
-	// 		return err
-	// 	}
-	// 	if ! info.IsDir() {
-	// 		fileName := filepath.Base(path)
-	// 		fileNameStr := strings.Replace(fileName, ".txt", "", -1)
-	// 		fmt.Printf("Table name: %q\n", fileNameStr)
-
-	// 		err := filepath.Walk("C:\\projetos\\repositorios\\repos_google\\", func(pathInside string, infoInside fs.FileInfo, errInside error) error {
-	// 			if errInside != nil {
-	// 				fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", pathInside, errInside)
-	// 				return errInside
-	// 			}
-	// 			if infoInside.IsDir() && infoInside.Name() == subDirToSkip {
-	// 				//fmt.Printf("skipping a dir without errors: %+v \n", infoInside.Name())
-	// 				return filepath.SkipDir
-	// 			}
-	// 			if ! infoInside.IsDir() {
-	// 				//fmt.Printf("File repo: %q\n", pathInside)
-	// 				wg.Add(1)
-	// 				go readFileParallel(pathInside, fileNameStr, &wg)
-	// 				//readFile(path)
-	// 			}
-	// 			return nil
-	// 		})
-
-	// 		if err != nil {
-	// 			fmt.Printf("error walking the path: %v\n", err)
-	// 			return err
-	// 		}
-	// 	}
-	// 	return nil
-	// })
-
-	err := filepath.WalkDir("C:\\projetos\\repositorios\\repos_google\\", func(pathInside string, infoInside fs.DirEntry, errInside error) error {
-		if errInside != nil {
-			fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", pathInside, errInside)
-			return errInside
+	err_parent := filepath.WalkDir("PATH_FOLDER", func(path string, info fs.DirEntry, err error) error {
+		if err != nil {
+			fmt.Printf("Error %q: %v\n", path, err)
+			return err
 		}
-		if infoInside.IsDir() && infoInside.Name() == subDirToSkip && infoInside.Name() == ".idea" {
-			//fmt.Printf("skipping a dir without errors: %+v \n", infoInside.Name())
-			return filepath.SkipDir
-		}
-		if ! infoInside.IsDir() {
-			ext := filepath.Ext(infoInside.Name())
-			if ext == ".java" || ext == ".sql" || ext == ".xml" || ext == ".hql" {
-				//fmt.Printf("File repo: %q\n", pathInside)
-				wg.Add(1)
-				go readFileParallel(pathInside, "dw_r_recarga_oferta_dia", &wg)
+		if ! info.IsDir() {
+			fileName := filepath.Base(path)
+			fileNameStr := strings.Replace(fileName, ".txt", "", -1)
+			fmt.Printf("Table name: %q\n", fileNameStr)
+
+			stringChan := make(chan string)
+
+			err := filepath.WalkDir("PATH_FOLDER", func(pathInside string, infoInside fs.DirEntry, errInside error) error {
+				if errInside != nil {
+					fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", pathInside, errInside)
+					return errInside
+				}
+				if infoInside.IsDir() && infoInside.Name() == subDirToSkip && infoInside.Name() == ".idea" {
+					//fmt.Printf("skipping a dir without errors: %+v \n", infoInside.Name())
+					return filepath.SkipDir
+				}
+				if ! infoInside.IsDir() {
+					ext := filepath.Ext(infoInside.Name())
+					if ext == ".java" || ext == ".sql" || ext == ".xml" || ext == ".hql" {
+						//fmt.Printf("File repo: %q\n", pathInside)
+						wg.Add(1)
+						go readFileParallel(pathInside, fileNameStr, stringChan, &wg)
+					}
+					//readFile(path)
+				}
+				return nil
+			})
+
+			if err != nil {
+				fmt.Printf("error walking the path: %v\n", err)
+				return err
 			}
-			//readFile(path)
+			go writeFile(path, stringChan)
 		}
 		return nil
 	})
@@ -142,13 +144,9 @@ func main() {
 	difference := endTime.Sub(currentTime)
 
 	fmt.Println("The Finish time is", difference)
-	// if err_parent != nil {
-	// 	fmt.Printf("error walking the path: %v\n", err_parent)
-	// 	return
-	// }
-
-	if err != nil {
-		fmt.Printf("error walking the path: %v\n", err)
+	if err_parent != nil {
+		fmt.Printf("error walking the path: %v\n", err_parent)
 		return
 	}
+
 }
